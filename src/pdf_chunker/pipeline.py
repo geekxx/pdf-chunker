@@ -6,7 +6,6 @@ from pdf_chunker.ingestion.loader import load_document
 from pdf_chunker.ingestion.extractor import extract_text
 from pdf_chunker.conversion.markdown_writer import to_markdown
 from pdf_chunker.conversion.cleaner import clean_markdown_document
-from pdf_chunker.chunking.structural_chunker import StructuralChunker
 from pdf_chunker.config import ChunkingConfig
 from pdf_chunker.models import Chunk
 
@@ -39,7 +38,12 @@ def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | Non
         md_doc = to_markdown(doc)
         md_doc = clean_markdown_document(md_doc)
 
-        chunker = StructuralChunker()
+        if config.strategy == "sliding":
+            from pdf_chunker.chunking.window_chunker import SlidingWindowChunker
+            chunker = SlidingWindowChunker()
+        else:
+            from pdf_chunker.chunking.structural_chunker import StructuralChunker
+            chunker = StructuralChunker()
         chunks = chunker.chunk(md_doc, config)
 
         from pdf_chunker.output.json_writer import write_json
