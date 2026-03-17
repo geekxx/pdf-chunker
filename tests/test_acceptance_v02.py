@@ -229,9 +229,11 @@ class TestErrorHandling:
             str(FIXTURES_DIR / "corrupted.pdf"),
             "--output", str(tmp_path),
         ])
-        # Should not crash — exit code 1 (failure) is acceptable
+        # Should not crash — exit code 1 or 2 is acceptable (not an unhandled exception)
         assert result.exit_code in (1, 2)
-        assert result.exception is None
+        # Verify no unhandled exception (SystemExit is expected from Click)
+        if result.exception is not None:
+            assert isinstance(result.exception, SystemExit)
 
     def test_summary_printed_at_end(self, tmp_path):
         """A processing summary is printed at the end."""
