@@ -4,7 +4,7 @@ from pathlib import Path
 
 import click
 
-from pdf_chunker.config import ChunkingConfig
+from pdf_chunker.config import ChunkingConfig, load_config, generate_default_config
 from pdf_chunker.pipeline import process_pdf, process_batch
 
 
@@ -17,9 +17,30 @@ from pdf_chunker.pipeline import process_pdf, process_batch
 @click.option("--max-tokens", type=int, default=1500, help="Maximum tokens per chunk")
 @click.option("--strategy", type=click.Choice(["structural", "sliding"]), default="structural")
 @click.option("--format", "output_format", type=click.Choice(["json", "markdown"]), default="json", help="Output format")
+@click.option("--config", "config_path", type=click.Path(exists=True), default=None, help="Path to TOML config file")
 @click.pass_context
-def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strategy, output_format):
+def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strategy, output_format, config_path):
     """Process PDF files into AI-optimized Markdown chunks."""
+    # If config_path provided, load it and use as base (CLI args override)
+    if config_path:
+        try:
+            app_config = load_config(Path(config_path))
+            # CLI args override config only if they differ from Click defaults
+            if max_tokens == 1500:
+                max_tokens = app_config.chunking.max_tokens
+            if strategy == "structural":
+                strategy = app_config.chunking.strategy
+            if output_format == "json":
+                output_format = app_config.output_format
+            if not compact:
+                compact = app_config.compact
+            if not verbose:
+                verbose = app_config.verbose
+        except Exception as e:
+            click.echo(f"Error loading config: {e}", err=True)
+            ctx.exit(2)
+            return
+
     # Configure logging
     level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stderr)
@@ -69,3 +90,21 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
     else:
         click.echo(f"Error: '{input_path}' is not a file or directory.", err=True)
         ctx.exit(2)
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli_group(ctx):
+    """pdf-chunker: Process PDF files into AI-optimized chunks."""
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@cli_group.command("init-config")
+@click.option("--output", "-o", type=click.Path(), default="./pdf-chunker.toml", help="Output path for config file")
+def init_config(output):
+    """Generate a default configuration file."""
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(generate_default_config())
+    click.echo(f"Default config written to {path}")
