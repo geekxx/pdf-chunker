@@ -1,6 +1,27 @@
 from collections import Counter
 
-from pdf_chunker.models import Document, MarkdownDocument
+from pdf_chunker.models import Document, MarkdownDocument, Table
+
+
+def table_to_markdown(table: Table) -> str:
+    """Convert a Table to GFM pipe table syntax."""
+    if not table.rows:
+        return ""
+
+    def escape_cell(cell: str) -> str:
+        return cell.replace("|", r"\|")
+
+    lines = []
+    for i, row in enumerate(table.rows):
+        escaped = [escape_cell(cell) for cell in row]
+        line = "| " + " | ".join(escaped) + " |"
+        lines.append(line)
+
+        if i == 0 and table.has_header_row:
+            separator = "| " + " | ".join("---" for _ in row) + " |"
+            lines.append(separator)
+
+    return "\n".join(lines)
 
 
 def to_markdown(document: Document) -> MarkdownDocument:
@@ -10,7 +31,10 @@ def to_markdown(document: Document) -> MarkdownDocument:
     for page in document.pages:
         all_blocks.extend(page.text_blocks)
 
-    if not all_blocks:
+    # Check if there's any content (text or tables)
+    has_tables = any(page.tables for page in document.pages)
+
+    if not all_blocks and not has_tables:
         return MarkdownDocument(
             content="",
             source_path=document.path,
@@ -58,6 +82,17 @@ def to_markdown(document: Document) -> MarkdownDocument:
         page_map.append((start_offset, end_offset, block.page_number))
 
         parts.append(formatted)
+
+    # Append tables from each page
+    for page in document.pages:
+        for table in page.tables:
+            md = table_to_markdown(table)
+            if md:
+                current_offset = sum(len(p) + 2 for p in parts)
+                start_offset = current_offset
+                end_offset = start_offset + len(md)
+                page_map.append((start_offset, end_offset, table.page_number))
+                parts.append(md)
 
     content = "\n\n".join(parts)
 
