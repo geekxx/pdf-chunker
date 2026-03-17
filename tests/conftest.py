@@ -17,6 +17,8 @@ def create_fixture_pdfs():
     _create_multiheading_pdf()
     _create_corrupted_pdf()
     _create_empty_pdf()
+    _create_table_pdf()
+    _create_unstructured_pdf()
 
 
 def _create_simple_pdf():
@@ -139,3 +141,80 @@ def _create_empty_pdf():
     pdf = FPDF()
     pdf.add_page()
     pdf.output(str(FIXTURES_DIR / "empty.pdf"))
+
+
+def _create_table_pdf():
+    """A PDF with a table embedded between text."""
+    pdf = FPDF()
+    pdf.add_page()
+
+    # Title
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 10, "Report with Table", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    # Intro text
+    pdf.set_font("Helvetica", "", 12)
+    pdf.multi_cell(0, 6, "The following table shows quarterly results:")
+    pdf.ln(4)
+
+    # Table header
+    pdf.set_font("Helvetica", "B", 11)
+    col_w = 45
+    pdf.cell(col_w, 8, "Quarter", border=1)
+    pdf.cell(col_w, 8, "Revenue", border=1)
+    pdf.cell(col_w, 8, "Profit", border=1)
+    pdf.cell(col_w, 8, "Growth", border=1)
+    pdf.ln()
+
+    # Table rows
+    pdf.set_font("Helvetica", "", 11)
+    rows = [
+        ("Q1 2025", "$1.2M", "$300K", "12%"),
+        ("Q2 2025", "$1.5M", "$400K", "25%"),
+        ("Q3 2025", "$1.8M", "$500K", "20%"),
+        ("Q4 2025", "$2.1M", "$650K", "17%"),
+    ]
+    for row in rows:
+        for val in row:
+            pdf.cell(col_w, 8, val, border=1)
+        pdf.ln()
+
+    pdf.ln(4)
+
+    # Closing text
+    pdf.set_font("Helvetica", "", 12)
+    pdf.multi_cell(0, 6, "The results demonstrate consistent growth across all quarters.")
+
+    pdf.output(str(FIXTURES_DIR / "table.pdf"))
+
+
+def _create_unstructured_pdf():
+    """A PDF with no headings — just body text paragraphs. For sliding-window chunker testing."""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "", 12)
+
+    # Generate enough text for multiple chunks
+    paragraphs = [
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor "
+        "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
+        "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu "
+        "fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa "
+        "qui officia deserunt mollit anim id est laborum.",
+        "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque "
+        "laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi "
+        "architecto beatae vitae dicta sunt explicabo.",
+        "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia "
+        "consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro "
+        "quisquam est, qui dolorem ipsum quia dolor sit amet.",
+        "At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium "
+        "voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint "
+        "occaecati cupiditate non provident.",
+    ]
+    for p in paragraphs:
+        pdf.multi_cell(0, 6, p)
+        pdf.ln(4)
+
+    pdf.output(str(FIXTURES_DIR / "unstructured.pdf"))
