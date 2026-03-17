@@ -19,6 +19,7 @@ def create_fixture_pdfs():
     _create_empty_pdf()
     _create_table_pdf()
     _create_unstructured_pdf()
+    _create_image_pdf()
 
 
 def _create_simple_pdf():
@@ -218,3 +219,44 @@ def _create_unstructured_pdf():
         pdf.ln(4)
 
     pdf.output(str(FIXTURES_DIR / "unstructured.pdf"))
+
+
+def _create_image_pdf():
+    """A PDF with an embedded image between text blocks."""
+    from PIL import Image
+
+    # Create a small test image
+    img_path = FIXTURES_DIR / "test_image.png"
+    img = Image.new("RGB", (200, 100), color=(70, 130, 180))
+    img.save(str(img_path))
+
+    pdf = FPDF()
+    pdf.add_page()
+
+    # Title
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 10, "Document with Image", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    # Intro text
+    pdf.set_font("Helvetica", "", 12)
+    pdf.multi_cell(0, 6, "The following image shows a sample visualization:")
+    pdf.ln(4)
+
+    # Embed the image
+    pdf.image(str(img_path), x=40, w=80)
+    pdf.ln(4)
+
+    # Caption-like text
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.cell(0, 6, "Figure 1: Sample visualization", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    # More text after the image
+    pdf.set_font("Helvetica", "", 12)
+    pdf.multi_cell(0, 6, "The image above demonstrates the key findings of the analysis.")
+
+    pdf.output(str(FIXTURES_DIR / "with_image.pdf"))
+
+    # Clean up the temp image
+    img_path.unlink(missing_ok=True)
