@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 
 from pdf_chunker.config import ChunkingConfig, load_config, generate_default_config
-from pdf_chunker.pipeline import process_pdf, process_batch
+from pdf_chunker.pipeline import process_pdf, process_batch, BatchResult
 
 
 @click.command()
@@ -18,8 +18,9 @@ from pdf_chunker.pipeline import process_pdf, process_batch
 @click.option("--strategy", type=click.Choice(["structural", "sliding"]), default="structural")
 @click.option("--format", "output_format", type=click.Choice(["json", "markdown"]), default="json", help="Output format")
 @click.option("--config", "config_path", type=click.Path(exists=True), default=None, help="Path to TOML config file")
+@click.option("--in-place", is_flag=True, help="Output alongside the source PDF(s)")
 @click.pass_context
-def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strategy, output_format, config_path):
+def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strategy, output_format, config_path, in_place):
     """Process PDF files into AI-optimized Markdown chunks."""
     # If config_path provided, load it and use as base (CLI args override)
     if config_path:
@@ -58,7 +59,8 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
 
     if input_path.is_file():
         # Single file mode
-        result = process_pdf(input_path, output_dir, config, compact=compact, output_format=output_format)
+        file_output_dir = input_path.parent if in_place else output_dir
+        result = process_pdf(input_path, file_output_dir, config, compact=compact, output_format=output_format)
         if result.success:
             click.echo(f"Processed 1 file, {result.total_chunks} chunks generated, 0 errors")
         else:
@@ -77,7 +79,19 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
             ctx.exit(0)
             return
 
-        batch = process_batch(pdf_files, output_dir, config, compact=compact, output_format=output_format)
+        if in_place:
+            # Process each file with output alongside its source
+            batch = BatchResult(total_files=len(pdf_files))
+            for pdf_file in pdf_files:
+                result = process_pdf(pdf_file, pdf_file.parent, config, compact=compact, output_format=output_format)
+                batch.results.append(result)
+                if result.success:
+                    batch.successful += 1
+                    batch.total_chunks += result.total_chunks
+                else:
+                    batch.failed += 1
+        else:
+            batch = process_batch(pdf_files, output_dir, config, compact=compact, output_format=output_format)
 
         click.echo(f"Processed {batch.total_files} files, {batch.total_chunks} chunks generated, {batch.failed} errors")
 
