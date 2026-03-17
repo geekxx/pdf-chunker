@@ -16,8 +16,9 @@ from pdf_chunker.pipeline import process_pdf, process_batch
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.option("--max-tokens", type=int, default=1500, help="Maximum tokens per chunk")
 @click.option("--strategy", type=click.Choice(["structural", "sliding"]), default="structural")
+@click.option("--format", "output_format", type=click.Choice(["json", "markdown"]), default="json", help="Output format")
 @click.pass_context
-def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strategy):
+def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strategy, output_format):
     """Process PDF files into AI-optimized Markdown chunks."""
     # Configure logging
     level = logging.DEBUG if verbose else logging.WARNING
@@ -36,7 +37,7 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
 
     if input_path.is_file():
         # Single file mode
-        result = process_pdf(input_path, output_dir, config, compact=compact)
+        result = process_pdf(input_path, output_dir, config, compact=compact, output_format=output_format)
         if result.success:
             click.echo(f"Processed 1 file, {result.total_chunks} chunks generated, 0 errors")
         else:
@@ -55,7 +56,7 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
             ctx.exit(0)
             return
 
-        batch = process_batch(pdf_files, output_dir, config, compact=compact)
+        batch = process_batch(pdf_files, output_dir, config, compact=compact, output_format=output_format)
 
         click.echo(f"Processed {batch.total_files} files, {batch.total_chunks} chunks generated, {batch.failed} errors")
 

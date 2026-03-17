@@ -29,7 +29,7 @@ class BatchResult:
     total_chunks: int = 0
 
 
-def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | None = None, compact: bool = False) -> ProcessingResult:
+def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | None = None, compact: bool = False, output_format: str = "json") -> ProcessingResult:
     """Process a single PDF file through the full pipeline. Returns ProcessingResult."""
     config = config or ChunkingConfig()
     try:
@@ -46,23 +46,29 @@ def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | Non
             chunker = StructuralChunker()
         chunks = chunker.chunk(md_doc, config)
 
-        from pdf_chunker.output.json_writer import write_json
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / f"{input_path.stem}_chunks.json"
-        write_json(chunks, str(input_path), output_path, compact=compact)
+
+        if output_format == "markdown":
+            from pdf_chunker.output.markdown_writer import write_markdown
+            write_markdown(chunks, str(input_path), md_doc.content, output_dir)
+            result_path = output_dir / input_path.stem
+        else:
+            from pdf_chunker.output.json_writer import write_json
+            result_path = output_dir / f"{input_path.stem}_chunks.json"
+            write_json(chunks, str(input_path), result_path, compact=compact)
 
         logger.info(f"Processed {input_path}: {len(chunks)} chunks")
-        return ProcessingResult(output_path=output_path, total_chunks=len(chunks), success=True)
+        return ProcessingResult(output_path=result_path, total_chunks=len(chunks), success=True)
     except Exception as e:
         logger.error(f"Failed to process {input_path}: {e}")
         return ProcessingResult(success=False, error=str(e))
 
 
-def process_batch(paths: list[Path], output_dir: Path, config: ChunkingConfig | None = None, compact: bool = False) -> BatchResult:
+def process_batch(paths: list[Path], output_dir: Path, config: ChunkingConfig | None = None, compact: bool = False, output_format: str = "json") -> BatchResult:
     """Process multiple PDF files. Returns BatchResult with per-file results."""
     batch = BatchResult(total_files=len(paths))
     for path in paths:
-        result = process_pdf(path, output_dir, config, compact)
+        result = process_pdf(path, output_dir, config, compact, output_format=output_format)
         batch.results.append(result)
         if result.success:
             batch.successful += 1
