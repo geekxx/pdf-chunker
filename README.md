@@ -25,7 +25,7 @@ pip install pdf-chunker
 Or for development:
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/geekxx/pdf-chunker.git
 cd pdf-chunker
 uv sync
 ```
@@ -45,6 +45,9 @@ pdf-chunker input.pdf --format markdown
 # Use sliding-window chunking with custom token limit
 pdf-chunker input.pdf --strategy sliding --max-tokens 1000
 
+# Output alongside the source PDF
+pdf-chunker input.pdf --in-place
+
 # Verbose logging
 pdf-chunker input.pdf --verbose
 ```
@@ -63,6 +66,7 @@ pdf-chunker [OPTIONS] INPUT_PATH
 | `--max-tokens` | Maximum tokens per chunk | `1500` |
 | `--recursive`, `-r` | Recurse into subdirectories | off |
 | `--compact` | Minified JSON output | off |
+| `--in-place` | Output alongside each source PDF | off |
 | `--verbose`, `-v` | Enable debug logging | off |
 | `--config` | Path to TOML config file | none |
 
