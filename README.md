@@ -9,7 +9,7 @@ Convert PDFs to AI-optimized Markdown chunks with rich metadata. Designed for pr
 - **Image detection** with placeholder insertion or extraction to disk
 - **Structural chunking** — split at heading boundaries with heading hierarchy context
 - **Sliding-window chunking** — configurable token size with overlap for unstructured documents
-- **Content cleaning** — smart quote normalization, ligature expansion, hyphenated line rejoining
+- **Content cleaning** — smart quote normalization, ligature expansion, hyphenated line rejoining, spaced-character repair
 - **DRM watermark stripping** — automatically removes DriveThruRPG-style watermarks and orphaned author lines
 - **Low-value chunk filtering** — configurable skip patterns drop TOC, marketing, and boilerplate chunks
 - **Quality report** — token distribution, watermark stats, and filtered chunk summary after each run
@@ -159,6 +159,15 @@ for chunk in chunks:
 ## Post-Processing
 
 After chunking, pdf-chunker applies configurable post-processing steps to clean up output.
+
+### Spaced Character Repair
+
+PDFs with decorative or display fonts often produce per-glyph text spans, resulting in extracted text like `T he  B arbarian` instead of `The Barbarian`. pdf-chunker fixes this at two levels:
+
+1. **Extraction** — spans within a PDF line are concatenated directly without inserting spaces between per-glyph runs
+2. **Cleaning** — a pattern-based pass collapses remaining `X yz` artifacts when a line has 2+ occurrences (avoiding false positives on legitimate text like "I am")
+
+This runs automatically with no configuration needed.
 
 ### Watermark Stripping
 

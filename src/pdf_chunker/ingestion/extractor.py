@@ -20,23 +20,31 @@ def extract_text(document: Document) -> Document:
             if "lines" not in block:
                 continue
 
-            # Collect all spans across lines in this block
-            spans = []
+            # Collect spans line-by-line: concatenate spans within a line
+            # directly (they are contiguous text runs), then join lines
+            # with spaces. This avoids inserting spurious spaces within
+            # words when the PDF uses per-character or per-glyph spans
+            # (common in decorative/display fonts).
+            all_spans = []
+            line_texts = []
             for line in block["lines"]:
-                for span in line["spans"]:
-                    spans.append(span)
+                line_text = "".join(s["text"] for s in line["spans"])
+                line_text = line_text.strip()
+                if line_text:
+                    line_texts.append(line_text)
+                all_spans.extend(line["spans"])
 
-            if not spans:
+            if not all_spans:
                 continue
 
-            text = " ".join(s["text"] for s in spans).strip()
+            text = " ".join(line_texts).strip()
             if not text:
                 continue
 
             # Compute dominant font size and flags
-            font_size = sum(s["size"] for s in spans) / len(spans)
+            font_size = sum(s["size"] for s in all_spans) / len(all_spans)
             # Pick most common flags value
-            flags_counter = Counter(s["flags"] for s in spans)
+            flags_counter = Counter(s["flags"] for s in all_spans)
             font_flags = flags_counter.most_common(1)[0][0]
 
             text_blocks.append(TextBlock(
