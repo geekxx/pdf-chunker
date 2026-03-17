@@ -117,7 +117,71 @@ class StructuralChunker(Chunker):
                 if current_para_content.strip():
                     raw_chunks.append((hierarchy, current_para_content.strip()))
 
-        merged_chunks = raw_chunks
+        # Merge small chunks with their neighbors
+        merged_chunks: list[tuple[list[str], str]] = []
+        for hierarchy, chunk_content in raw_chunks:
+            token_count = _count_tokens(chunk_content, config.token_encoding)
+
+            # Check if this chunk is just a bare heading (no body content)
+            lines_in_chunk = [l.strip() for l in chunk_content.split("\n") if l.strip()]
+            is_bare_heading = (
+                len(lines_in_chunk) <= 1
+                and lines_in_chunk
+                and _get_heading_level(lines_in_chunk[0]) is not None
+            )
+
+            if is_bare_heading and merged_chunks:
+                # Append bare heading to previous chunk
+                prev_hierarchy, prev_content = merged_chunks[-1]
+                merged_chunks[-1] = (prev_hierarchy, prev_content + "\n\n" + chunk_content)
+            elif is_bare_heading and not merged_chunks:
+                # First chunk is a bare heading — hold it, will merge forward
+                merged_chunks.append((hierarchy, chunk_content))
+            elif token_count < config.min_tokens and merged_chunks:
+                # Small chunk — merge with previous chunk if combined size is reasonable
+                prev_hierarchy, prev_content = merged_chunks[-1]
+                combined = prev_content + "\n\n" + chunk_content
+                combined_tokens = _count_tokens(combined, config.token_encoding)
+                if combined_tokens <= config.max_tokens:
+                    merged_chunks[-1] = (prev_hierarchy, combined)
+                else:
+                    # Can't merge backward without exceeding max — keep as is
+                    merged_chunks.append((hierarchy, chunk_content))
+            else:
+                # Check if previous chunk was bare heading — merge it forward
+                if merged_chunks:
+                    prev_hierarchy, prev_content = merged_chunks[-1]
+                    prev_lines = [l.strip() for l in prev_content.split("\n") if l.strip()]
+                    prev_is_bare = (
+                        len(prev_lines) <= 1
+                        and prev_lines
+                        and _get_heading_level(prev_lines[0]) is not None
+                    )
+                    if prev_is_bare:
+                        combined = prev_content + "\n\n" + chunk_content
+                        combined_tokens = _count_tokens(combined, config.token_encoding)
+                        if combined_tokens <= config.max_tokens:
+                            merged_chunks[-1] = (hierarchy, combined)
+                            continue
+
+                merged_chunks.append((hierarchy, chunk_content))
+
+        # Second merge pass: catch any remaining small chunks
+        if len(merged_chunks) > 1:
+            final_chunks: list[tuple[list[str], str]] = [merged_chunks[0]]
+            for hierarchy, chunk_content in merged_chunks[1:]:
+                token_count = _count_tokens(chunk_content, config.token_encoding)
+                if token_count < config.min_tokens:
+                    prev_hierarchy, prev_content = final_chunks[-1]
+                    combined = prev_content + "\n\n" + chunk_content
+                    combined_tokens = _count_tokens(combined, config.token_encoding)
+                    if combined_tokens <= config.max_tokens:
+                        final_chunks[-1] = (prev_hierarchy, combined)
+                    else:
+                        final_chunks.append((hierarchy, chunk_content))
+                else:
+                    final_chunks.append((hierarchy, chunk_content))
+            merged_chunks = final_chunks
 
         if not merged_chunks:
             return []

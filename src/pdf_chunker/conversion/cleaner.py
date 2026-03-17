@@ -30,7 +30,10 @@ def clean(text: str) -> str:
     # 5. Rejoin hyphenated line breaks
     text = re.sub(r"(\w+)-\s*\n\s*(\w+)", r"\1\2", text)
 
-    # 6. Collapse excessive whitespace
+    # 6. Remove bare page number lines (lines that are just a number, possibly with whitespace)
+    text = re.sub(r"\n\s*\d{1,4}\s*\n", "\n", text)
+
+    # 7. Collapse excessive whitespace
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text
