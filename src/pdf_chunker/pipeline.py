@@ -8,6 +8,12 @@ from pdf_chunker.conversion.markdown_writer import to_markdown
 from pdf_chunker.conversion.cleaner import clean_markdown_document
 from pdf_chunker.config import ChunkingConfig
 from pdf_chunker.models import Chunk
+from pdf_chunker.chunking.postprocess import (
+    strip_watermarks,
+    filter_chunks,
+    print_quality_report,
+    PostProcessingReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +24,7 @@ class ProcessingResult:
     total_chunks: int = 0
     success: bool = True
     error: str | None = None
+    quality_report: str | None = None
 
 
 @dataclass
@@ -27,6 +34,33 @@ class BatchResult:
     successful: int = 0
     failed: int = 0
     total_chunks: int = 0
+
+
+def _postprocess_chunks(chunks: list[Chunk], config: ChunkingConfig, source_name: str) -> tuple[list[Chunk], str | None]:
+    """Apply watermark stripping, filtering, and quality reporting to chunks."""
+    report = PostProcessingReport()
+
+    # Strip watermarks from each chunk's content
+    if config.strip_watermarks:
+        for chunk in chunks:
+            original = chunk.content
+            cleaned = strip_watermarks(chunk.content, report)
+            if cleaned != original:
+                chunk.content = cleaned
+                # Recount tokens after stripping
+                from pdf_chunker.chunking.structural_chunker import _count_tokens
+                chunk.token_count = _count_tokens(cleaned, config.token_encoding)
+                chunk.metadata.token_count = chunk.token_count
+
+    # Filter low-value chunks
+    chunks = filter_chunks(chunks, config, report)
+
+    # Generate quality report
+    quality_text = None
+    if config.quality_report:
+        quality_text = print_quality_report(chunks, report, source_name)
+
+    return chunks, quality_text
 
 
 def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | None = None, compact: bool = False, output_format: str = "json") -> ProcessingResult:
@@ -46,6 +80,9 @@ def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | Non
             chunker = StructuralChunker()
         chunks = chunker.chunk(md_doc, config)
 
+        # Post-processing: watermark stripping, filtering, quality report
+        chunks, quality_report = _postprocess_chunks(chunks, config, input_path.name)
+
         output_dir.mkdir(parents=True, exist_ok=True)
 
         if output_format == "markdown":
@@ -58,7 +95,7 @@ def process_pdf(input_path: Path, output_dir: Path, config: ChunkingConfig | Non
             write_json(chunks, str(input_path), result_path, compact=compact)
 
         logger.info(f"Processed {input_path}: {len(chunks)} chunks")
-        return ProcessingResult(output_path=result_path, total_chunks=len(chunks), success=True)
+        return ProcessingResult(output_path=result_path, total_chunks=len(chunks), success=True, quality_report=quality_report)
     except Exception as e:
         logger.error(f"Failed to process {input_path}: {e}")
         return ProcessingResult(success=False, error=str(e))

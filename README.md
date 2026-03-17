@@ -10,6 +10,9 @@ Convert PDFs to AI-optimized Markdown chunks with rich metadata. Designed for pr
 - **Structural chunking** — split at heading boundaries with heading hierarchy context
 - **Sliding-window chunking** — configurable token size with overlap for unstructured documents
 - **Content cleaning** — smart quote normalization, ligature expansion, hyphenated line rejoining
+- **DRM watermark stripping** — automatically removes DriveThruRPG-style watermarks and orphaned author lines
+- **Low-value chunk filtering** — configurable skip patterns drop TOC, marketing, and boilerplate chunks
+- **Quality report** — token distribution, watermark stats, and filtered chunk summary after each run
 - **Rich metadata** — source file, page numbers, token counts, deterministic chunk IDs
 - **Multiple output formats** — JSON (default) or individual Markdown files with YAML frontmatter
 - **TOML config files** — codify your settings for repeatable processing
@@ -76,6 +79,24 @@ pdf-chunker [OPTIONS] INPUT_PATH
 pdf-chunker init-config --output pdf-chunker.toml
 ```
 
+The generated config includes all available options with documentation. Key sections:
+
+```toml
+[chunking]
+strategy = "structural"
+max_tokens = 1500
+min_tokens = 100
+
+[filtering]
+strip_watermarks = true
+quality_report = true
+# skip_patterns = ["(?i)^table of contents$", ...]
+
+[output]
+format = "json"
+compact = false
+```
+
 ## Output Formats
 
 ### JSON (default)
@@ -133,6 +154,80 @@ chunks = chunker.chunk(md_doc, ChunkingConfig(max_tokens=1000))
 for chunk in chunks:
     print(f"[{chunk.metadata.chunk_id}] {chunk.token_count} tokens")
     print(chunk.content[:100])
+```
+
+## Post-Processing
+
+After chunking, pdf-chunker applies configurable post-processing steps to clean up output.
+
+### Watermark Stripping
+
+Enabled by default. Removes DRM watermark lines matching the pattern `Name (Order #NNNNNNN)` (DriveThruRPG format) from every chunk. Also strips orphaned author name lines that immediately follow watermarks.
+
+```bash
+# Disable watermark stripping via config
+```
+
+```toml
+[filtering]
+strip_watermarks = false
+```
+
+### Chunk Filtering
+
+Low-value chunks are automatically dropped based on heading content. Default skip patterns filter out:
+
+- Table of Contents
+- Title/cover pages (heading-only chunks under 20 tokens)
+- Newsletter/marketing sections ("Get Free", "Subscribe", "Insider")
+- Recommended reading/watching lists
+- "Other Books by" sections
+
+Override with custom patterns in your config:
+
+```toml
+[filtering]
+skip_patterns = [
+    "(?i)^table of contents$",
+    "(?i)^appendix",
+    "(?i)changelog",
+]
+```
+
+Set `skip_patterns = []` to disable filtering entirely.
+
+### Quality Report
+
+After processing, a summary report is printed to stderr showing token distribution, watermark removal stats, and any filtered chunks:
+
+```text
+--- Quality Report: document.pdf ---
+Total chunks: 42
+Total tokens: 18340
+Token range: 87-1487 (avg 436)
+
+Token distribution:
+  junk (<10)             0
+  tiny (10-50)           0
+  small (50-100)         2  ##
+  medium (100-300)      12  ############
+  good (300-1000)       20  ####################
+  large (1000+)          8  ########
+
+Watermark lines stripped: 54
+Orphaned author lines stripped: 48
+
+Chunks filtered out: 3
+  [0] "Title" - likely title/cover page (very low tokens, heading-only)
+  [1] "Table of Contents" - heading matches pattern: (?i)^table of contents$
+  [52] "Other Books by Matt Davids" - heading matches pattern: (?i)other books by
+```
+
+Disable with:
+
+```toml
+[filtering]
+quality_report = false
 ```
 
 ## Chunking Strategies

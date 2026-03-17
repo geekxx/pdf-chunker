@@ -13,6 +13,21 @@ class ChunkingConfig(BaseModel):
     overlap: int = 200
     split_heading_level: int = 2
     token_encoding: str = "cl100k_base"
+    strip_watermarks: bool = True
+    skip_patterns: list[str] = [
+        r"(?i)^table of contents$",
+        r"(?i)^contents$",
+        r"(?i)get free",
+        r"(?i)subscribe",
+        r"(?i)newsletter",
+        r"(?i)insider",
+        r"(?i)recommended (reading|watching|viewing)",
+        r"(?i)other books by",
+        r"(?i)also by",
+        r"(?i)^title page$",
+        r"(?i)^cover$",
+    ]
+    quality_report: bool = True
 
     @field_validator("max_tokens")
     @classmethod
@@ -44,6 +59,12 @@ def load_config(path: Path) -> AppConfig:
     if unknown_keys:
         logging.getLogger(__name__).warning(f"Unknown config keys ignored: {unknown_keys}")
 
+    # Handle top-level filtering config that maps to chunking fields
+    filtering_data = data.get("filtering", {})
+    for key in ("strip_watermarks", "skip_patterns", "quality_report"):
+        if key in filtering_data and key not in filtered_chunking:
+            filtered_chunking[key] = filtering_data[key]
+
     return AppConfig(
         chunking=ChunkingConfig(**filtered_chunking),
         output_format=data.get("output", {}).get("format", "json"),
@@ -74,6 +95,28 @@ split_heading_level = 2
 
 # Tokenizer encoding
 token_encoding = "cl100k_base"
+
+[filtering]
+# Remove DRM watermarks matching "Name (Order #NNNNNNN)" pattern
+strip_watermarks = true
+
+# Print a quality report after chunking
+quality_report = true
+
+# Skip chunks whose headings match these patterns (regex, case-insensitive)
+# skip_patterns = [
+#     "(?i)^table of contents$",
+#     "(?i)^contents$",
+#     "(?i)get free",
+#     "(?i)subscribe",
+#     "(?i)newsletter",
+#     "(?i)insider",
+#     "(?i)recommended (reading|watching|viewing)",
+#     "(?i)other books by",
+#     "(?i)also by",
+#     "(?i)^title page$",
+#     "(?i)^cover$",
+# ]
 
 [output]
 # Output format: "json" or "markdown"

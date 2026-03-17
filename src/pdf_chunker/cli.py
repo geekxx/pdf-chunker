@@ -62,6 +62,8 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
         file_output_dir = input_path.parent if in_place else output_dir
         result = process_pdf(input_path, file_output_dir, config, compact=compact, output_format=output_format)
         if result.success:
+            if result.quality_report:
+                click.echo(result.quality_report, err=True)
             click.echo(f"Processed 1 file, {result.total_chunks} chunks generated, 0 errors")
         else:
             click.echo(f"Error processing {input_path}: {result.error}", err=True)
@@ -92,6 +94,11 @@ def main(ctx, input_path, output, recursive, compact, verbose, max_tokens, strat
                     batch.failed += 1
         else:
             batch = process_batch(pdf_files, output_dir, config, compact=compact, output_format=output_format)
+
+        # Print quality reports for each successful file
+        for result in batch.results:
+            if result.success and result.quality_report:
+                click.echo(result.quality_report, err=True)
 
         click.echo(f"Processed {batch.total_files} files, {batch.total_chunks} chunks generated, {batch.failed} errors")
 
